@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Pong Ultimate v8.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            overscroll-behavior: none;
+            touch-action: none;
+            font-family: 'Inter', sans-serif;
+            background: #090d16;
+            color: #f8fafc;
+        }
+        .glow-text {
+            text-shadow: 0 0 15px rgba(56, 189, 248, 0.7);
+        }
+        .glow-box {
+            box-shadow: 0 0 25px rgba(56, 189, 248, 0.25);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-[100dvh] w-screen overflow-hidden select-none justify-between p-2 sm:p-4">
+
+    <!-- Header HUD -->
+    <header class="flex justify-between items-center w-full max-w-2xl mx-auto bg-slate-900/90 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-3 rounded-2xl border border-slate-800 glow-box shrink-0 gap-2">
+        <div class="text-center min-w-[70px] sm:min-w-[100px]">
+            <span id="p2-label" class="text-[10px] sm:text-xs uppercase tracking-wider text-rose-400 block font-semibold truncate max-w-[90px] sm:max-w-[140px]">Gegner</span>
+            <span id="ai-score" class="text-lg sm:text-2xl font-black text-rose-400">0</span>
+        </div>
+        <div class="text-center flex flex-col sm:flex-row items-center gap-1 sm:gap-4">
+            <span id="match-status" class="text-[10px] sm:text-xs font-bold text-amber-400 bg-slate-950/80 px-2.5 py-0.5 rounded-full border border-slate-800 truncate max-w-[140px] sm:max-w-[220px]">Bereit zum Start</span>
+            <div class="flex items-center gap-2">
+                <div>
+                    <span class="text-[9px] sm:text-[10px] uppercase tracking-wider text-cyan-400 block font-semibold">Zeit</span>
+                    <span id="match-timer" class="text-xs sm:text-sm font-bold text-cyan-300">0:00</span>
+                </div>
+                <!-- Music Quick Toggle Button -->
+                <button id="music-quick-btn" class="bg-slate-800 hover:bg-slate-700 text-amber-400 p-1.5 sm:p-2 rounded-xl border border-slate-700 transition text-xs flex items-center justify-center shadow min-w-[36px] min-h-[36px]" title="Musik umschalten">
+                    🎵 <span id="music-quick-label" class="text-[9px] sm:text-xs ml-1 font-bold">1</span>
+                </button>
+            </div>
+        </div>
+        <div class="text-center min-w-[70px] sm:min-w-[100px]">
+            <span id="player-label" class="text-[10px] sm:text-xs uppercase tracking-wider text-emerald-400 block font-semibold truncate max-w-[90px] sm:max-w-[140px]">Spieler 1</span>
+            <span id="player-score" class="text-lg sm:text-2xl font-black text-emerald-400">0</span>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-1 flex items-center justify-center relative my-1 sm:my-2 w-full max-w-2xl mx-auto overflow-hidden">
+        <div class="relative w-full h-full max-h-[680px] bg-slate-950 rounded-3xl border-2 border-slate-800 overflow-hidden shadow-2xl flex items-center justify-center">
+            <canvas id="pongCanvas" class="w-full h-full block cursor-pointer object-contain touch-none"></canvas>
+            
+            <!-- Dedicated Serve Action Overlay Button for Tablet/Touch -->
+            <button id="serve-action-btn" class="hidden absolute bottom-20 left-1/2 -translate-x-1/2 z-10 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black px-6 py-3 rounded-2xl shadow-[0_0_25px_rgba(251,191,36,0.5)] border-2 border-amber-300 text-xs sm:text-sm uppercase tracking-wider transition">
+                ⚡ Aufschlag Ausführen ⚡
+            </button>
+
+            <!-- Main Menu Overlay -->
+            <div id="overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-6 text-center z-20 overflow-y-auto">
+                <h1 class="text-2xl sm:text-3xl font-black mb-1 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-emerald-400 glow-text">NEON PONG <span class="text-xs sm:text-sm font-bold text-amber-400 border border-amber-400/40 px-2 py-0.5 rounded-full bg-amber-400/10 align-middle">v8.2 Tablet</span></h1>
+                <p class="text-slate-400 text-xs sm:text-sm mb-3">Ultimatives Arcade & Tablet Erlebnis</p>
+
+                <!-- Game Mode Selector -->
+                <div class="w-full max-w-xs sm:max-w-md grid grid-cols-2 gap-2 mb-2 sm:mb-3">
+                    <button type="button" id="mode-ai-btn" class="py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition">1P vs KI</button>
+                    <button type="button" id="mode-2p-btn" class="py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-slate-800 text-slate-300 border border-slate-700 transition">2 Spieler</button>
+                </div>
+
+                <!-- Configuration Form -->
+                <div class="w-full max-w-xs sm:max-w-md bg-slate-900/80 p-3 sm:p-4 rounded-2xl border border-slate-800 mb-2 sm:mb-3 text-left space-y-2 sm:space-y-3">
+                    <!-- Player 1 Config -->
+                    <div>
+                        <label class="block text-[10px] font-semibold text-emerald-400 uppercase mb-0.5">Spieler 1 Name & Farbe</label>
+                        <input type="text" id="player-name-input" value="Champion" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1 text-xs text-white focus:outline-none focus:border-cyan-400 mb-1.5">
+                        <div class="flex gap-1.5 items-center justify-between" id="p1-color-picker"></div>
+                    </div>
+
+                    <!-- Player 2 / AI Config -->
+                    <div>
+                        <label id="p2-label-config" class="block text-[10px] font-semibold text-rose-400 uppercase mb-0.5">KI Gegner Farbe</label>
+                        <input type="text" id="player2-name-input" value="Herausforderer" maxlength="12" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1 text-xs text-white focus:outline-none focus:border-cyan-400 mb-1.5 hidden">
+                        <div class="flex gap-1.5 items-center justify-between" id="p2-color-picker"></div>
+                    </div>
+
+                    <!-- AI Difficulty -->
+                    <div id="ai-difficulty-container">
+                        <label class="block text-[10px] font-semibold text-cyan-400 uppercase mb-0.5">KI Schwierigkeit</label>
+                        <div class="grid grid-cols-3 gap-1">
+                            <button type="button" class="ai-diff-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-diff="BEGINNER">Anfänger</button>
+                            <button type="button" class="ai-diff-btn py-1 rounded-lg text-[10px] font-bold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition" data-diff="INTERMEDIATE">Fortgeschr.</button>
+                            <button type="button" class="ai-diff-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-diff="PRO">Profi</button>
+                        </div>
+                    </div>
+                    <!-- Target Score -->
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-300 uppercase mb-0.5">Ziel-Punktzahl</label>
+                        <div class="grid grid-cols-4 gap-1">
+                            <button type="button" class="target-btn py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-score="3">3</button>
+                            <button type="button" class="target-btn py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition" data-score="5">5</button>
+                            <button type="button" class="target-btn py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-score="10">10</button>
+                            <button type="button" class="target-btn py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-score="15">15</button>
+                        </div>
+                    </div>
+                    <!-- Retro Music Selector -->
+                    <div>
+                        <label class="block text-[10px] font-semibold text-amber-400 uppercase mb-0.5">🎵 Retro Musik</label>
+                        <div class="grid grid-cols-4 gap-1">
+                            <button type="button" class="music-btn py-1 rounded-lg text-[10px] font-bold bg-amber-500 text-slate-950 border border-amber-400 shadow-md transition" data-track="1">1. Cyber</button>
+                            <button type="button" class="music-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-track="2">2. 8-Bit</button>
+                            <button type="button" class="music-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition" data-track="3">3. Space</button>
+                            <button type="button" class="music-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 transition" data-track="0">Aus</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Highscore Board Section -->
+                <div class="w-full max-w-xs bg-slate-900/60 p-2 rounded-2xl border border-slate-800/80 mb-2 text-left">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">🏆 Highscores (Top 10)</span>
+                        <div class="flex gap-1" id="highscore-filter-tabs">
+                            <button type="button" class="hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-cyan-500 text-slate-950" data-target="3">3P</button>
+                            <button type="button" class="hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-800 text-slate-400" data-target="5">5P</button>
+                            <button type="button" class="hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-800 text-slate-400" data-target="10">10P</button>
+                            <button type="button" class="hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-800 text-slate-400" data-target="15">15P</button>
+                        </div>
+                    </div>
+                    <div id="highscore-list" class="space-y-1 text-xs text-slate-300 max-h-24 overflow-y-auto pr-1">
+                        <div class="flex justify-between text-slate-500 italic"><span>Keine Einträge</span><span>-</span></div>
+                    </div>
+                </div>
+
+                <div class="w-full max-w-xs sm:max-w-md flex gap-2">
+                    <button id="start-btn" class="flex-1 bg-gradient-to-r from-cyan-500 via-indigo-500 to-emerald-500 hover:opacity-95 text-slate-950 font-extrabold py-2.5 sm:py-3 px-4 rounded-2xl shadow-lg transition-transform active:scale-95 text-xs sm:text-sm">
+                        SPIEL STARTEN
+                    </button>
+                    <button id="help-btn" class="bg-slate-800 hover:bg-slate-700 text-cyan-400 font-extrabold py-2.5 sm:py-3 px-3 rounded-2xl border border-slate-700 shadow-lg transition text-xs sm:text-sm">
+                        ❓ Hilfe
+                    </button>
+                </div>
+            </div>
+
+            <!-- Spinning Wheel Roulette Overlay -->
+            <div id="roulette-overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md hidden flex flex-col items-center justify-center p-4 text-center z-30">
+                <div class="bg-slate-900/90 border-2 border-cyan-500/50 p-5 rounded-3xl shadow-[0_0_35px_rgba(6,182,212,0.3)] max-w-xs w-full relative overflow-hidden flex flex-col items-center">
+                    <div class="absolute -top-10 -right-10 w-28 h-28 bg-cyan-500/20 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="absolute -bottom-10 -left-10 w-28 h-28 bg-emerald-500/20 rounded-full blur-xl pointer-events-none"></div>
+                    
+                    <div class="text-2xl mb-1 animate-bounce">🎰</div>
+                    <h2 class="text-base font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 mb-1">AUFSCHLAG-DREHRAD</h2>
+                    <p class="text-[10px] text-slate-400 mb-3">Wer eröffnet das Duell?</p>
+                    
+                    <!-- Wheel Container -->
+                    <div class="relative w-36 h-36 mx-auto mb-3 flex items-center justify-center">
+                        <div class="absolute -top-3 z-20 w-4 h-5 bg-gradient-to-b from-amber-400 to-amber-600 rounded-b-full shadow-lg border border-amber-200"></div>
+                        <div id="wheel-container" class="w-full h-full rounded-full border-4 border-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.4)] relative overflow-hidden bg-slate-950 transition-all duration-[3000ms] ease-out">
+                            <canvas id="wheelCanvas" width="144" height="144" class="w-full h-full block"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="roulette-status" class="text-xs font-bold text-amber-400 tracking-wider glow-text">
+                        Dreht sich...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help Modal -->
+            <div id="help-modal" class="absolute inset-0 bg-slate-950/98 backdrop-blur-md hidden flex flex-col p-3 text-left z-30 overflow-y-auto">
+                <div class="flex justify-between items-center mb-2 border-b border-slate-800 pb-2">
+                    <h2 class="text-xs font-black text-cyan-400">📖 Regeln & 10 Power-Ups</h2>
+                    <button id="close-help-btn" class="text-slate-400 hover:text-white font-bold px-2 py-0.5 bg-slate-950 border border-slate-800 rounded-lg text-[10px]">✕ Schließen</button>
+                </div>
+                
+                <div class="space-y-2.5 text-xs text-slate-300">
+                    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                        <h3 class="font-bold text-emerald-400 mb-0.5">🎯 Manueller Aufschlag & Farbe</h3>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Der Ball startet auf dem Paddle und wird durch **Tippen** losgeschickt! Der Ball übernimmt die Farbe des Spielers, der ihn zuletzt berührt hat. Das Power-Up gehört exklusiv dem Spieler dieser Farbe.</p>
+                    </div>
+
+                    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
+                        <h3 class="font-bold text-amber-400 mb-1.5">⭐ Die 10 Bonus-Elemente</h3>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-amber-400 font-black text-xs">★</span>
+                                <div><div class="font-bold text-white text-[11px]">Stern</div><div class="text-[9px] text-slate-400">+2 Extrapunkte</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-cyan-400 font-black text-xs">♦</span>
+                                <div><div class="font-bold text-white text-[11px]">Diamant</div><div class="text-[9px] text-slate-400">+3 Extrapunkte</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-emerald-400 font-black text-xs">➕</span>
+                                <div><div class="font-bold text-white text-[11px]">Grow</div><div class="text-[9px] text-slate-400">Paddle vergrößern</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-rose-400 font-black text-xs">🎯</span>
+                                <div><div class="font-bold text-white text-[11px]">Target</div><div class="text-[9px] text-slate-400">Gegner verkleinern</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-yellow-400 font-black text-xs">⚡</span>
+                                <div><div class="font-bold text-white text-[11px]">Speed</div><div class="text-[9px] text-slate-400">Ball beschleunigen</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-purple-400 font-black text-xs">⏳</span>
+                                <div><div class="font-bold text-white text-[11px]">Slow</div><div class="text-[9px] text-slate-400">Ball verlangsamen</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-cyan-300 font-black text-xs">🛡️</span>
+                                <div><div class="font-bold text-white text-[11px]">Shield</div><div class="text-[9px] text-slate-400">Rückwand-Schutz</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-blue-300 font-black text-xs">❄</span>
+                                <div><div class="font-bold text-white text-[11px]">Freeze</div><div class="text-[9px] text-slate-400">Gegner einfrieren</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-orange-400 font-black text-xs">🔥</span>
+                                <div><div class="font-bold text-white text-[11px]">2x Fire</div><div class="text-[9px] text-slate-400">Nächster Punkt x2</div></div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800/60">
+                                <span class="text-pink-400 font-black text-xs">🧲</span>
+                                <div><div class="font-bold text-white text-[11px]">Magnet</div><div class="text-[9px] text-slate-400">Ball anziehen</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="w-full max-w-md mx-auto text-center shrink-0">
+        <p class="text-[10px] text-slate-500">v8.1 • Manueller Aufschlag • 5 Farben • Dynamischer Timer</p>
+    </footer>
+
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const wheelCanvas = document.getElementById('wheelCanvas');
+        const wheelCtx = wheelCanvas.getContext('2d');
+        const wheelContainer = document.getElementById('wheel-container');
+        const rouletteStatus = document.getElementById('roulette-status');
+
+        const playerScoreEl = document.getElementById('player-score');
+        const aiScoreEl = document.getElementById('ai-score');
+        const playerLabelEl = document.getElementById('player-label');
+        const p2LabelEl = document.getElementById('p2-label');
+        const matchStatusEl = document.getElementById('match-status');
+        const matchTimerEl = document.getElementById('match-timer');
+        const overlayEl = document.getElementById('overlay');
+        const serveActionBtn = document.getElementById('serve-action-btn');
+        const helpModalEl = document.getElementById('help-modal');
+        const startBtn = document.getElementById('start-btn');
+        const helpBtn = document.getElementById('help-btn');
+        const closeHelpBtn = document.getElementById('close-help-btn');
+        const playerNameInput = document.getElementById('player-name-input');
+        const player2NameInput = document.getElementById('player2-name-input');
+        const modeAiBtn = document.getElementById('mode-ai-btn');
+        const mode2pBtn = document.getElementById('mode-2p-btn');
+        const highscoreListEl = document.getElementById('highscore-list');
+        const targetBtns = document.querySelectorAll('.target-btn');
+        const musicBtns = document.querySelectorAll('.music-btn');
+        const musicQuickBtn = document.getElementById('music-quick-btn');
+        const musicQuickLabel = document.getElementById('music-quick-label');
+        const p1ColorPicker = document.getElementById('p1-color-picker');
+        const p2ColorPicker = document.getElementById('p2-color-picker');
+        const p2LabelConfig = document.getElementById('p2-label-config');
+        const p2ColorTitle = document.getElementById('p2-color-title');
+        const rouletteOverlay = document.getElementById('roulette-overlay');
+
+        const GAME_WIDTH = 400;
+        const GAME_HEIGHT = 650;
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+
+        let gameMode = 'AI';
+        let playerName = "Champion";
+        let player2Name = "Herausforderer";
+        let targetScore = 5;
+        let aiDifficulty = 'INTERMEDIATE';
+        let currentHighscoreFilter = 5;
+        let selectedMusicTrack = 1; // 1: Cyber Synth, 2: 8-Bit Arcade, 3: Space Odyssey, 0: Off
+
+        // Web Audio Multi-Track Retro Synth Engine
+        let audioCtx = null;
+        let musicInterval = null;
+        let musicStep = 0;
+
+        // Frequencies map for musical notes (Hz)
+        const N = {
+            OFF: 0,
+            C2: 65.41, D2: 73.42, Eb2: 77.78, E2: 82.41, F2: 87.31, G2: 98.00, Ab2: 103.83, A2: 110.00, Bb2: 116.54, B2: 123.47,
+            C3: 130.81, D3: 146.83, Eb3: 155.56, E3: 164.81, F3: 174.61, G3: 196.00, Ab3: 207.65, A3: 220.00, Bb3: 233.08, B3: 246.94,
+            C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, Ab4: 415.30, A4: 440.00, Bb4: 466.16, B4: 493.88,
+            C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
+        };
+
+        // Detailed 32-step arrangements (Bassline, Lead Melody, Kick Drum & Percussion)
+        const TRACK_1 = {
+            tempo: 125,
+            bass: [
+                N.E2, N.E2, N.E3, N.E2,  N.E2, N.E2, N.E3, N.E2,
+                N.C2, N.C2, N.C3, N.C2,  N.D2, N.D2, N.D3, N.D2,
+                N.E2, N.E2, N.E3, N.E2,  N.G2, N.G2, N.G3, N.G2,
+                N.C2, N.C2, N.C3, N.C2,  N.B2, N.B2, N.D3, N.B2
+            ],
+            lead: [
+                N.E4, N.G4, N.B4, N.E5,  N.B4, N.G4, N.E4, N.G4,
+                N.C4, N.E4, N.G4, N.C5,  N.D4, N.F4, N.A4, N.D5,
+                N.E4, N.G4, N.B4, N.E5,  N.G5, N.E5, N.B4, N.G4,
+                N.C4, N.E4, N.G4, N.C5,  N.B3, N.D4, N.F4, N.B4
+            ],
+            kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,1,0],
+            perc: [0,2,0,2, 1,2,0,2, 0,2,0,2, 1,2,0,2, 0,2,0,2, 1,2,0,2, 0,2,0,2, 1,2,1,2]
+        };
+
+        const TRACK_2 = {
+            tempo: 105,
+            bass: [
+                N.A2, N.A2, N.C3, N.A2,  N.D3, N.D2, N.F2, N.G2,
+                N.A2, N.A2, N.C3, N.A2,  N.G2, N.G2, N.F2, N.E2,
+                N.F2, N.F2, N.A2, N.F2,  N.G2, N.G2, N.B2, N.G2,
+                N.A2, N.A2, N.E3, N.C3,  N.E2, N.E2, N.G2, N.E2
+            ],
+            lead: [
+                N.A4, N.C5, N.E5, N.A5,  N.F5, N.D5, N.C5, N.B4,
+                N.A4, N.C5, N.E5, N.A5,  N.G5, N.E5, N.D5, N.C5,
+                N.F4, N.A4, N.C5, N.F5,  N.G4, N.B4, N.D5, N.G5,
+                N.E5, N.D5, N.C5, N.B4,  N.G4, N.E4, N.D4, N.E4
+            ],
+            kick: [1,0,1,0, 1,0,0,1, 1,0,1,0, 1,1,0,0, 1,0,1,0, 1,0,0,1, 1,0,1,0, 1,1,1,0],
+            perc: [2,2,1,2, 2,2,1,2, 2,2,1,2, 2,2,1,1, 2,2,1,2, 2,2,1,2, 2,2,1,2, 2,1,2,1]
+        };
+
+        const TRACK_3 = {
+            tempo: 135,
+            bass: [
+                N.C2, N.C2, N.C2, N.Eb2, N.F2, N.F2, N.F2, N.G2,
+                N.Ab2,N.Ab2,N.Ab2,N.Bb2, N.C2, N.C2, N.Eb2,N.C2,
+                N.C2, N.C2, N.C2, N.Eb2, N.F2, N.F2, N.Ab2,N.F2,
+                N.G2, N.G2, N.G2, N.Bb2, N.C2, N.C2, N.C3, N.C2
+            ],
+            lead: [
+                N.C4, N.OFF,N.Eb4,N.OFF,N.F4, N.G4, N.OFF,N.Bb4,
+                N.C5, N.OFF,N.Bb4,N.G4, N.Eb4,N.F4, N.Eb4,N.C4,
+                N.C4, N.OFF,N.Eb4,N.OFF,N.F4, N.Ab4,N.OFF,N.Bb4,
+                N.G4, N.OFF,N.F4, N.Eb4,N.C4, N.D4, N.Eb4,N.F4
+            ],
+            kick: [1,0,0,1, 1,0,0,0, 1,0,0,1, 1,0,1,0, 1,0,0,1, 1,0,0,0, 1,0,0,1, 1,1,0,0],
+            perc: [2,0,2,0, 1,0,2,0, 2,0,2,0, 1,0,2,2, 2,0,2,0, 1,0,2,0, 2,0,2,0, 1,1,2,2]
+        };
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBassTone(freq) {
+            if (!freq || selectedMusicTrack === 0 || !audioCtx) return;
+            try {
+                let osc1 = audioCtx.createOscillator();
+                let osc2 = audioCtx.createOscillator();
+                let filter = audioCtx.createBiquadFilter();
+                let gain = audioCtx.createGain();
+
+                osc1.type = 'sawtooth';
+                osc1.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(freq / 2, audioCtx.currentTime); // Sub-Oktave für fetten Tiefton
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(380, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.18);
+                filter.Q.value = 4.5;
+
+                let now = audioCtx.currentTime;
+                gain.gain.setValueAtTime(0.20, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.22);
+                osc2.stop(now + 0.22);
+            } catch(e) {}
+        }
+
+        function playKick() {
+            if (selectedMusicTrack === 0 || !audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                let now = audioCtx.currentTime;
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(170, now);
+                osc.frequency.exponentialRampToValueAtTime(32, now + 0.13);
+
+                gain.gain.setValueAtTime(0.38, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } catch(e) {}
+        }
+
+        function playPercussion(type) {
+            if (selectedMusicTrack === 0 || !audioCtx) return;
+            try {
+                let now = audioCtx.currentTime;
+                if (type === 1) { // Snare/Pop
+                    let osc = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(240, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 2) { // Hi-Hat Tick
+                    let osc = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(850, now);
+                    gain.gain.setValueAtTime(0.03, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.03);
+                }
+            } catch(e) {}
+        }
+
+        function playLeadSynth(freq) {
+            if (!freq || selectedMusicTrack === 0 || !audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                let now = audioCtx.currentTime;
+
+                osc.type = selectedMusicTrack === 1 ? 'sawtooth' : selectedMusicTrack === 2 ? 'square' : 'triangle';
+                osc.frequency.setValueAtTime(freq, now);
+
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } catch(e) {}
+        }
+
+        function startBackgroundMusic() {
+            stopBackgroundMusic();
+            if (selectedMusicTrack === 0) return;
+            initAudioContext();
+            musicStep = 0;
+
+            let curTrack = selectedMusicTrack === 1 ? TRACK_1 : selectedMusicTrack === 2 ? TRACK_2 : TRACK_3;
+
+            musicInterval = setInterval(() => {
+                if (selectedMusicTrack === 0) return;
+                let track = selectedMusicTrack === 1 ? TRACK_1 : selectedMusicTrack === 2 ? TRACK_2 : TRACK_3;
+                let stepIdx = musicStep % 32;
+
+                if (track.kick[stepIdx]) playKick();
+                if (track.perc[stepIdx]) playPercussion(track.perc[stepIdx]);
+                if (track.bass[stepIdx]) playBassTone(track.bass[stepIdx]);
+                if (track.lead[stepIdx]) playLeadSynth(track.lead[stepIdx]);
+
+                musicStep++;
+            }, curTrack.tempo);
+        }
+
+        function stopBackgroundMusic() {
+            if (musicInterval) {
+                clearInterval(musicInterval);
+                musicInterval = null;
+            }
+        }
+
+        function updateMusicUI() {
+            musicBtns.forEach(btn => {
+                let trk = parseInt(btn.dataset.track);
+                if (trk === selectedMusicTrack) {
+                    btn.className = "music-btn py-1 rounded-lg text-[10px] font-bold bg-amber-500 text-slate-950 border border-amber-400 shadow-md transition";
+                } else {
+                    btn.className = "music-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition";
+                }
+            });
+            musicQuickLabel.textContent = selectedMusicTrack === 0 ? "Aus" : selectedMusicTrack;
+        }
+
+        musicBtns.forEach(btn => {
+            btn.onclick = () => {
+                selectedMusicTrack = parseInt(btn.dataset.track);
+                updateMusicUI();
+                initAudioContext();
+                startBackgroundMusic();
+            };
+        });
+
+        musicQuickBtn.onclick = () => {
+            selectedMusicTrack = (selectedMusicTrack + 1) % 4;
+            updateMusicUI();
+            if (selectedMusicTrack === 0) {
+                stopBackgroundMusic();
+            } else {
+                initAudioContext();
+                startBackgroundMusic();
+            }
+        };
+
+        let matchDurationSeconds = 0;
+        let collectedPowerTypes = new Set();
+        let lastFrameTime = 0;
+        let activePlayTimeMs = 0;
+
+        const PADDLE_COLORS = [
+            { name: 'Türkis', hex: '#22d3ee' },
+            { name: 'Smaragd', hex: '#34d399' },
+            { name: 'Pink', hex: '#f472b6' },
+            { name: 'Bernstein', hex: '#fbbf24' },
+            { name: 'Violett', hex: '#a78bfa' }
+        ];
+
+        let p1SelectedColorIndex = 0;
+        let p2SelectedColorIndex = 1;
+
+        let gameState = 'MENU'; // MENU, ROULETTE, PLAYING, GAMEOVER
+
+        let player = {
+            x: GAME_WIDTH / 2 - 40,
+            y: GAME_HEIGHT - 65,
+            width: 80,
+            baseWidth: 80,
+            height: 12,
+            color: '#22d3ee'
+        };
+
+        let ai = {
+            x: GAME_WIDTH / 2 - 40,
+            y: 53,
+            width: 80,
+            baseWidth: 80,
+            height: 12,
+            color: '#f472b6',
+            frozen: false
+        };
+
+        let ball = {
+            x: GAME_WIDTH / 2,
+            y: GAME_HEIGHT / 2,
+            radius: 8,
+            speedX: 0,
+            speedY: 0,
+            baseSpeed: 4.5,
+            color: '#ffffff',
+            lastTouch: 'PLAYER',
+            waitingForServe: true
+        };
+
+        let bonusItems = [];
+        let activeShield = false;
+        let scoreMultiplier = 1;
+
+        const BONUS_TYPES = [
+            { type: 'STAR', symbol: '★', color: '#fbbf24', desc: '+2 Extrapunkte' },
+            { type: 'DIAMOND', symbol: '♦', color: '#22d3ee', desc: '+3 Extrapunkte' },
+            { type: 'GROW', symbol: '➕', color: '#34d399', desc: 'Paddle vergrößern' },
+            { type: 'TARGET', symbol: '🎯', color: '#f472b6', desc: 'Gegner verkleinern' },
+            { type: 'SPEED', symbol: '⚡', color: '#facc15', desc: 'Ball beschleunigen' },
+            { type: 'SLOW', symbol: '⏳', color: '#c084fc', desc: 'Ball verlangsamen' },
+            { type: 'SHIELD', symbol: '🛡️', color: '#67e8f9', desc: 'Rückwand-Schutz' },
+            { type: 'FREEZE', symbol: '❄', color: '#93c5fd', desc: 'Gegner einfrieren' },
+            { type: 'FIRE', symbol: '🔥', color: '#fb923c', desc: '2x Nächster Punkt' },
+            { type: 'MAGNET', symbol: '🧲', color: '#f43f5e', desc: 'Ball anziehen' }
+        ];
+
+        function initColorPickers() {
+            if (!p1ColorPicker || !p2ColorPicker) return;
+            p1ColorPicker.innerHTML = '';
+            p2ColorPicker.innerHTML = '';
+
+            PADDLE_COLORS.forEach((col, idx) => {
+                let btn1 = document.createElement('button');
+                btn1.type = 'button';
+                btn1.className = `w-7 h-7 rounded-full border-2 transition ${idx === p1SelectedColorIndex ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`;
+                btn1.style.backgroundColor = col.hex;
+                btn1.onclick = () => {
+                    p1SelectedColorIndex = idx;
+                    if (p1SelectedColorIndex === p2SelectedColorIndex) {
+                        p2SelectedColorIndex = (p1SelectedColorIndex + 1) % PADDLE_COLORS.length;
+                    }
+                    initColorPickers();
+                };
+                p1ColorPicker.appendChild(btn1);
+
+                let btn2 = document.createElement('button');
+                btn2.type = 'button';
+                btn2.className = `w-7 h-7 rounded-full border-2 transition ${idx === p2SelectedColorIndex ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60'}`;
+                btn2.style.backgroundColor = col.hex;
+                btn2.onclick = () => {
+                    p2SelectedColorIndex = idx;
+                    if (p2SelectedColorIndex === p1SelectedColorIndex) {
+                        p1SelectedColorIndex = (p2SelectedColorIndex + 1) % PADDLE_COLORS.length;
+                    }
+                    initColorPickers();
+                };
+                p2ColorPicker.appendChild(btn2);
+            });
+
+            player.color = PADDLE_COLORS[p1SelectedColorIndex].hex;
+            ai.color = PADDLE_COLORS[p2SelectedColorIndex].hex;
+        }
+
+        modeAiBtn.onclick = () => {
+            gameMode = 'AI';
+            modeAiBtn.className = "py-1.5 rounded-xl text-xs font-extrabold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition";
+            mode2pBtn.className = "py-1.5 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700 transition";
+            player2NameInput.classList.add('hidden');
+            p2LabelConfig.textContent = "KI Gegner";
+            document.getElementById('ai-difficulty-container').classList.remove('hidden');
+        };
+
+        mode2pBtn.onclick = () => {
+            gameMode = '2P';
+            mode2pBtn.className = "py-1.5 rounded-xl text-xs font-extrabold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition";
+            modeAiBtn.className = "py-1.5 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700 transition";
+            player2NameInput.classList.remove('hidden');
+            p2LabelConfig.textContent = "Spieler 2 (Oben)";
+            document.getElementById('ai-difficulty-container').classList.add('hidden');
+        };
+
+        targetBtns.forEach(btn => {
+            btn.onclick = () => {
+                targetBtns.forEach(b => b.className = "target-btn py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 transition");
+                btn.className = "target-btn py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition";
+                targetScore = parseInt(btn.dataset.score);
+            };
+        });
+
+        document.querySelectorAll('.ai-diff-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.ai-diff-btn').forEach(b => b.className = "ai-diff-btn py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700 transition");
+                btn.className = "ai-diff-btn py-1 rounded-lg text-[10px] font-bold bg-cyan-500 text-slate-950 border border-cyan-400 shadow-md transition";
+                aiDifficulty = btn.dataset.diff;
+            };
+        });
+
+        document.querySelectorAll('.hs-filter-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.hs-filter-btn').forEach(b => b.className = "hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-800 text-slate-400");
+                btn.className = "hs-filter-btn px-1.5 py-0.5 text-[9px] font-bold rounded bg-cyan-500 text-slate-950";
+                currentHighscoreFilter = parseInt(btn.dataset.target);
+                renderHighscores();
+            };
+        });
+
+        helpBtn.onclick = () => helpModalEl.classList.remove('hidden');
+        closeHelpBtn.onclick = () => helpModalEl.classList.add('hidden');
+
+        function getHighscores(target) {
+            let key = `neon_pong_hs_${target}`;
+            try {
+                let data = JSON.parse(localStorage.getItem(key));
+                return Array.isArray(data) ? data : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function saveHighscore(target, name, score, powerupsCount, timeSecs) {
+            let key = `neon_pong_hs_${target}`;
+            let list = getHighscores(target);
+            let totalPoints = (score * 100) + (powerupsCount * 50) + Math.max(0, 300 - timeSecs) * 5;
+            list.push({ name, totalPoints, powerupsCount, timeSecs, date: new Date().toLocaleDateString() });
+            list.sort((a, b) => b.totalPoints - a.totalPoints);
+            list = list.slice(0, 10);
+            localStorage.setItem(key, JSON.stringify(list));
+        }
+
+        function renderHighscores() {
+            let list = getHighscores(currentHighscoreFilter);
+            highscoreListEl.innerHTML = '';
+            if (list.length === 0) {
+                highscoreListEl.innerHTML = `<div class="flex justify-between text-slate-500 italic"><span>Keine Einträge für ${currentHighscoreFilter}P</span><span>-</span></div>`;
+                return;
+            }
+            list.forEach((item, idx) => {
+                let row = document.createElement('div');
+                row.className = "flex justify-between items-center bg-slate-950/80 px-2 py-1 rounded-lg border border-slate-800/50 text-[11px]";
+                row.innerHTML = `<span class="font-bold text-cyan-400">#${idx+1} ${item.name}</span><span class="text-amber-400 font-extrabold">${item.totalPoints} Pkt</span>`;
+                highscoreListEl.appendChild(row);
+            });
+        }
+
+        function startRoulette() {
+            playerName = (playerNameInput && playerNameInput.value.trim()) ? playerNameInput.value.trim() : "Champion";
+            player2Name = gameMode === 'AI' ? (aiDifficulty === 'BEGINNER' ? 'KI Anfänger' : aiDifficulty === 'INTERMEDIATE' ? 'KI Profi' : 'KI Meister') : ((player2NameInput && player2NameInput.value.trim()) || "Gegner");
+            
+            playerLabelEl.textContent = playerName;
+            p2LabelEl.textContent = player2Name;
+
+            overlayEl.classList.add('hidden');
+            rouletteOverlay.classList.remove('hidden');
+            gameState = 'ROULETTE';
+
+            initAudioContext();
+            startBackgroundMusic();
+
+            drawWheelSegments();
+
+            rouletteStatus.textContent = "Dreht sich...";
+            wheelContainer.style.transform = "rotate(0deg)";
+            
+            let randomDeg = 1440 + Math.floor(Math.random() * 720);
+            setTimeout(() => {
+                wheelContainer.style.transform = `rotate(${randomDeg}deg)`;
+            }, 50);
+
+            setTimeout(() => {
+                let normalized = (randomDeg % 360);
+                let servingToPlayer = normalized < 180;
+                rouletteStatus.textContent = `${servingToPlayer ? playerName : player2Name} beginnt Aufschlag!`;
+                
+                setTimeout(() => {
+                    rouletteOverlay.classList.add('hidden');
+                    launchGame(servingToPlayer);
+                }, 1200);
+            }, 3100);
+        }
+
+        function drawWheelSegments() {
+            wheelCtx.clearRect(0, 0, 144, 144);
+            let cx = 72, cy = 72, r = 70;
+            
+            wheelCtx.beginPath();
+            wheelCtx.moveTo(cx, cy);
+            wheelCtx.arc(cx, cy, r, 0, Math.PI);
+            wheelCtx.fillStyle = player.color;
+            wheelCtx.fill();
+            wheelCtx.closePath();
+
+            wheelCtx.beginPath();
+            wheelCtx.moveTo(cx, cy);
+            wheelCtx.arc(cx, cy, r, Math.PI, Math.PI * 2);
+            wheelCtx.fillStyle = ai.color;
+            wheelCtx.fill();
+            wheelCtx.closePath();
+
+            wheelCtx.beginPath();
+            wheelCtx.arc(cx, cy, 20, 0, Math.PI * 2);
+            wheelCtx.fillStyle = '#090d16';
+            wheelCtx.fill();
+            wheelCtx.lineWidth = 3;
+            wheelCtx.strokeStyle = '#38bdf8';
+            wheelCtx.stroke();
+            wheelCtx.closePath();
+        }
+
+        startBtn.onclick = startRoulette;
+
+        function launchGame(servingToPlayer) {
+            player.score = 0;
+            ai.score = 0;
+            bonusItems = [];
+            activeShield = false;
+            scoreMultiplier = 1;
+            player.width = player.baseWidth;
+            ai.width = ai.baseWidth;
+            ai.frozen = false;
+            playerScoreEl.textContent = player.score;
+            aiScoreEl.textContent = ai.score;
+            
+            lastFrameTime = Date.now();
+            activePlayTimeMs = 0;
+            matchDurationSeconds = 0;
+            collectedPowerTypes.clear();
+
+            gameState = 'PLAYING';
+            resetBall(servingToPlayer);
+        }
+
+        function resetBall(toPlayer) {
+            ball.waitingForServe = true;
+            ball.speedX = 0;
+            ball.speedY = 0;
+            ball.color = '#ffffff';
+            ball.lastTouch = toPlayer ? 'PLAYER' : 'AI';
+
+            let statusMsg = '';
+            if (toPlayer) {
+                statusMsg = `${playerName}: Aufschlag!`;
+                if (serveActionBtn) serveActionBtn.classList.remove('hidden');
+            } else {
+                statusMsg = gameMode === 'AI' ? "KI schlägt auf..." : `${player2Name}: Aufschlag!`;
+                if (gameMode === '2P' && serveActionBtn) {
+                    serveActionBtn.classList.remove('hidden');
+                } else if (serveActionBtn) {
+                    serveActionBtn.classList.add('hidden');
+                }
+                
+                if (gameMode === 'AI') {
+                    setTimeout(() => {
+                        if (gameState === 'PLAYING' && ball.waitingForServe) {
+                            executeServe(false);
+                        }
+                    }, 1000);
+                }
+            }
+
+            if (matchStatusEl) matchStatusEl.textContent = statusMsg;
+        }
+
+        function executeServe(byPlayer) {
+            if (!ball.waitingForServe) return;
+            ball.waitingForServe = false;
+            if (serveActionBtn) serveActionBtn.classList.add('hidden');
+            if (matchStatusEl) matchStatusEl.textContent = "Im Spiel";
+            
+            let angle = (Math.random() * 0.6 - 0.3);
+            let speed = ball.baseSpeed;
+            if (byPlayer) {
+                ball.speedX = speed * Math.sin(angle);
+                ball.speedY = -speed * Math.cos(angle);
+                ball.lastTouch = 'PLAYER';
+                ball.color = player.color;
+            } else {
+                ball.speedX = speed * Math.sin(angle);
+                ball.speedY = speed * Math.cos(angle);
+                ball.lastTouch = 'AI';
+                ball.color = ai.color;
+            }
+        }
+
+        // Serve button click handler
+        if (serveActionBtn) {
+            serveActionBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (gameState === 'PLAYING' && ball.waitingForServe) {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+            });
+            serveActionBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (gameState === 'PLAYING' && ball.waitingForServe) {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+            }, { passive: false });
+        }
+
+        // Keypress serve (Space / Enter / Up Arrow)
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') {
+                if (gameState === 'PLAYING' && ball.waitingForServe) {
+                    e.preventDefault();
+                    if (ball.lastTouch === 'PLAYER' || gameMode === '2P') {
+                        executeServe(ball.lastTouch === 'PLAYER');
+                    }
+                }
+            }
+        });
+
+        // Universal pointer movement for tablet touch and mouse
+        function handlePointerMove(clientX, clientY) {
+            if (gameState !== 'PLAYING') return;
+            let rect = canvas.getBoundingClientRect();
+            let rootX = (clientX - rect.left) * (GAME_WIDTH / rect.width);
+            let rootY = (clientY - rect.top) * (GAME_HEIGHT / rect.height);
+
+            if (rootY > GAME_HEIGHT / 2) {
+                player.x = rootX - player.width / 2;
+            } else if (gameMode === '2P') {
+                ai.x = rootX - ai.width / 2;
+            }
+
+            player.x = Math.max(10, Math.min(GAME_WIDTH - player.width - 10, player.x));
+            ai.x = Math.max(10, Math.min(GAME_WIDTH - ai.width - 10, ai.x));
+        }
+
+        canvas.addEventListener('pointerdown', (e) => {
+            if (gameState !== 'PLAYING') return;
+            if (ball.waitingForServe) {
+                if (ball.lastTouch === 'PLAYER' || gameMode === '2P') {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+            } else {
+                handlePointerMove(e.clientX, e.clientY);
+            }
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            if (e.buttons > 0 || e.pointerType === 'touch' || e.pointerType === 'pen') {
+                handlePointerMove(e.clientX, e.clientY);
+            }
+        });
+
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('touchend', (e) => {
+            if (gameState === 'PLAYING' && ball.waitingForServe) {
+                if (ball.lastTouch === 'PLAYER' || gameMode === '2P') {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameState !== 'PLAYING') return;
+            handlePointerMove(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('click', () => {
+            if (gameState === 'PLAYING' && ball.waitingForServe) {
+                if (ball.lastTouch === 'PLAYER' || gameMode === '2P') {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+            }
+        });
+
+        function handleTouch(e) {
+            e.preventDefault();
+            if (gameState !== 'PLAYING') return;
+
+            if (ball.waitingForServe) {
+                if (ball.lastTouch === 'PLAYER' || gameMode === '2P') {
+                    executeServe(ball.lastTouch === 'PLAYER');
+                }
+                return;
+            }
+
+            let rect = canvas.getBoundingClientRect();
+            for (let i = 0; i < e.touches.length; i++) {
+                let t = e.touches[i];
+                let tx = (t.clientX - rect.left) * (GAME_WIDTH / rect.width);
+                let ty = (t.clientY - rect.top) * (GAME_HEIGHT / rect.height);
+
+                if (ty > GAME_HEIGHT / 2) {
+                    player.x = tx - player.width / 2;
+                } else if (gameMode === '2P') {
+                    ai.x = tx - ai.width / 2;
+                }
+            }
+
+            player.x = Math.max(10, Math.min(GAME_WIDTH - player.width - 10, player.x));
+            ai.x = Math.max(10, Math.min(GAME_WIDTH - ai.width - 10, ai.x));
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            let now = Date.now();
+            let delta = now - lastFrameTime;
+            lastFrameTime = now;
+
+            if (!ball.waitingForServe) {
+                activePlayTimeMs += delta;
+            }
+
+            matchDurationSeconds = Math.floor(activePlayTimeMs / 1000);
+            let mins = Math.floor(matchDurationSeconds / 60);
+            let secs = matchDurationSeconds % 60;
+            matchTimerEl.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            if (!ball.waitingForServe) {
+                ball.x += ball.speedX;
+                ball.y += ball.speedY;
+
+                if (ball.x - ball.radius < 10) {
+                    ball.x = 10 + ball.radius;
+                    ball.speedX *= -1;
+                } else if (ball.x + ball.radius > GAME_WIDTH - 10) {
+                    ball.x = GAME_WIDTH - 10 - ball.radius;
+                    ball.speedX *= -1;
+                }
+
+                if (gameMode === 'AI' && !ai.frozen) {
+                    let aiSpeed = aiDifficulty === 'BEGINNER' ? 2.5 : aiDifficulty === 'INTERMEDIATE' ? 4.0 : 5.8;
+                    let targetX = ball.x - ai.width / 2;
+                    if (ai.x < targetX) ai.x += Math.min(aiSpeed, targetX - ai.x);
+                    if (ai.x > targetX) ai.x -= Math.min(aiSpeed, ai.x - targetX);
+                }
+                ai.x = Math.max(10, Math.min(GAME_WIDTH - ai.width - 10, ai.x));
+                player.x = Math.max(10, Math.min(GAME_WIDTH - player.width - 10, player.x));
+
+                if (ball.y + ball.radius >= player.y && ball.y - ball.radius <= player.y + player.height &&
+                    ball.x >= player.x && ball.x <= player.x + player.width) {
+                    
+                    let hitPos = (ball.x - (player.x + player.width / 2)) / (player.width / 2);
+                    let angle = hitPos * (Math.PI / 3);
+                    let currentSpeed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
+                    
+                    ball.speedX = currentSpeed * Math.sin(angle);
+                    ball.speedY = -currentSpeed * Math.cos(angle);
+                    ball.y = player.y - ball.radius;
+                    ball.lastTouch = 'PLAYER';
+                    ball.color = player.color;
+                }
+
+                if (ball.y - ball.radius <= ai.y + ai.height && ball.y + ball.radius >= ai.y &&
+                    ball.x >= ai.x && ball.x <= ai.x + ai.width) {
+                    
+                    let hitPos = (ball.x - (ai.x + ai.width / 2)) / (ai.width / 2);
+                    let angle = hitPos * (Math.PI / 3);
+                    let currentSpeed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
+                    
+                    ball.speedX = currentSpeed * Math.sin(angle);
+                    ball.speedY = currentSpeed * Math.cos(angle);
+                    ball.y = ai.y + ai.height + ball.radius;
+                    ball.lastTouch = 'AI';
+                    ball.color = ai.color;
+                }
+
+                if (Math.random() < 0.015 && bonusItems.length < 3) {
+                    let randomBonus = BONUS_TYPES[Math.floor(Math.random() * BONUS_TYPES.length)];
+                    bonusItems.push({
+                        x: Math.random() * (GAME_WIDTH - 80) + 40,
+                        y: Math.random() * (GAME_HEIGHT - 300) + 150,
+                        radius: 14,
+                        ...randomBonus
+                    });
+                }
+
+                for (let i = bonusItems.length - 1; i >= 0; i--) {
+                    let b = bonusItems[i];
+                    let dist = Math.hypot(ball.x - b.x, ball.y - b.y);
+                    if (dist < ball.radius + b.radius) {
+                        collectedPowerTypes.add(b.type);
+                        applyBonusEffect(b.type, ball.lastTouch);
+                        bonusItems.splice(i, 1);
+                    }
+                }
+
+                if (ball.y < 0) {
+                    if (activeShield) {
+                        activeShield = false;
+                        ball.speedY *= -1;
+                        ball.y = ai.y + ai.height + ball.radius;
+                    } else {
+                        let pts = scoreMultiplier;
+                        player.score += pts;
+                        scoreMultiplier = 1;
+                        playerScoreEl.textContent = player.score;
+                        if (player.score >= targetScore) {
+                            endMatch('PLAYER');
+                        } else {
+                            resetBall(false);
+                        }
+                    }
+                } else if (ball.y > GAME_HEIGHT) {
+                    let pts = scoreMultiplier;
+                    ai.score += pts;
+                    scoreMultiplier = 1;
+                    aiScoreEl.textContent = ai.score;
+                    if (ai.score >= targetScore) {
+                        endMatch('AI');
+                    } else {
+                        resetBall(true);
+                    }
+                }
+            } else {
+                if (ball.lastTouch === 'PLAYER') {
+                    ball.x = player.x + player.width / 2;
+                    ball.y = player.y - ball.radius - 2;
+                } else {
+                    ball.x = ai.x + ai.width / 2;
+                    ball.y = ai.y + ai.height + ball.radius + 2;
+                }
+            }
+        }
+
+        function applyBonusEffect(type, lastTouchUser) {
+            let isPlayer = (lastTouchUser === 'PLAYER');
+            switch(type) {
+                case 'STAR':
+                    if (isPlayer) player.score += 2; else ai.score += 2;
+                    break;
+                case 'DIAMOND':
+                    if (isPlayer) player.score += 3; else ai.score += 3;
+                    break;
+                case 'GROW':
+                    if (isPlayer) player.width = Math.min(130, player.width + 25);
+                    else ai.width = Math.min(130, ai.width + 25);
+                    break;
+                case 'TARGET':
+                    if (isPlayer) ai.width = Math.max(50, ai.width - 20);
+                    else player.width = Math.max(50, player.width - 20);
+                    break;
+                case 'SPEED':
+                    ball.speedX *= 1.25;
+                    ball.speedY *= 1.25;
+                    break;
+                case 'SLOW':
+                    ball.speedX *= 0.8;
+                    ball.speedY *= 0.8;
+                    break;
+                case 'SHIELD':
+                    if (isPlayer) activeShield = true;
+                    break;
+                case 'FREEZE':
+                    if (!isPlayer) {
+                        player.frozen = true;
+                        setTimeout(() => player.frozen = false, 2500);
+                    } else {
+                        ai.frozen = true;
+                        setTimeout(() => ai.frozen = false, 2500);
+                    }
+                    break;
+                case 'FIRE':
+                    scoreMultiplier = 2;
+                    break;
+                case 'MAGNET':
+                    if (isPlayer) ball.speedX += (player.x + player.width/2 - ball.x) * 0.05;
+                    else ball.speedX += (ai.x + ai.width/2 - ball.x) * 0.05;
+                    break;
+            }
+            playerScoreEl.textContent = player.score;
+            aiScoreEl.textContent = ai.score;
+        }
+
+        function endMatch(winner) {
+            gameState = 'GAMEOVER';
+            let isPlayerWin = (winner === 'PLAYER');
+            let finalScore = isPlayerWin ? player.score : ai.score;
+            
+            if (isPlayerWin) {
+                saveHighscore(targetScore, playerName, finalScore, collectedPowerTypes.size, matchDurationSeconds);
+            }
+
+            if (serveActionBtn) serveActionBtn.classList.add('hidden');
+            if (matchStatusEl) matchStatusEl.textContent = isPlayerWin ? "🏆 Sieg!" : "Niederlage!";
+            
+            setTimeout(() => {
+                overlayEl.classList.remove('hidden');
+                renderHighscores();
+            }, 1000);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(5, 5, GAME_WIDTH - 10, GAME_HEIGHT - 10);
+
+            ctx.beginPath();
+            ctx.setLineDash([6, 6]);
+            ctx.moveTo(20, GAME_HEIGHT / 2);
+            ctx.lineTo(GAME_WIDTH - 20, GAME_HEIGHT / 2);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (activeShield) {
+                ctx.strokeStyle = '#67e8f9';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(15, GAME_HEIGHT - 10);
+                ctx.lineTo(GAME_WIDTH - 15, GAME_HEIGHT - 10);
+                ctx.stroke();
+            }
+
+            bonusItems.forEach(b => {
+                ctx.save();
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = b.color;
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#090d16';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(b.symbol, b.x, b.y);
+                ctx.restore();
+            });
+
+            ctx.save();
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = player.color;
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.roundRect(player.x, player.y, player.width, player.height, 6);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.save();
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = ai.color;
+            ctx.fillStyle = ai.color;
+            ctx.beginPath();
+            ctx.roundRect(ai.x, ai.y, ai.width, ai.height, 6);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.save();
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = ball.color;
+            ctx.fillStyle = ball.color;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Aufschlag-Indikator wenn Ball wartet
+            if (ball.waitingForServe) {
+                ctx.save();
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = 'bold 12px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                if (ball.lastTouch === 'PLAYER') {
+                    ctx.fillText('⚡ TIPPEN ODER BUTTON DRÜCKEN ZUM AUFSCHLAG ⚡', GAME_WIDTH / 2, player.y - 25);
+                } else if (gameMode === '2P') {
+                    ctx.fillText('⚡ TIPPEN ODER BUTTON DRÜCKEN ZUM AUFSCHLAG ⚡', GAME_WIDTH / 2, ai.y + 35);
+                }
+                ctx.restore();
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        initColorPickers();
+        renderHighscores();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
